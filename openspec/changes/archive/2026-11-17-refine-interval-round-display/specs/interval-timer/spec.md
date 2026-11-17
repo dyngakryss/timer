@@ -7,16 +7,16 @@ The interval timer SHALL count down each configured round in minutes and seconds
 
 #### Scenario: Start an interval session
 - **WHEN** the user starts an interval timer while it is reset
-- **THEN** the display counts down the configured duration and shows the first round as 1 of the configured total above it at approximately 67% of the countdown text size
+- **THEN** the display counts down the configured duration and shows “1 of <total>” above it at approximately 67% of the countdown text size
 
 #### Scenario: Advance to the next round
 - **WHEN** a round reaches zero and more configured rounds remain
-- **THEN** the current round increases by one, the status above the countdown updates to show the current and total round, and the next countdown begins immediately without a rest interval
+- **THEN** the current round increases by one, the status above the countdown updates to “<current> of <total>”, and the next countdown begins immediately without a rest interval
 
 #### Scenario: Complete the final round
 - **WHEN** the final configured round reaches zero
-- **THEN** the timer stops at zero and the status above the countdown shows all configured rounds complete
+- **THEN** the timer stops at zero and the status above the countdown shows “<total> of <total>” without additional text
 
 #### Scenario: Keep round information accessible
 - **WHEN** an interval round is displayed
-- **THEN** the current and total round status appears above the countdown, the separate large round numeral is absent, and the status remains accessible to assistive technology
+- **THEN** only the current and total values in “<current> of <total>” format appear above the countdown, the separate large round numeral is absent, and the status remains accessible to assistive technology
