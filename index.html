@@ -36,6 +36,10 @@
         box-shadow: 0 1.5rem 4rem #0004;
       }
 
+      #timer-carousel {
+        touch-action: pan-y;
+      }
+
       .heading-row {
         display: flex;
         align-items: center;
@@ -51,6 +55,24 @@
         font-weight: 600;
         letter-spacing: 0.16em;
         text-transform: uppercase;
+      }
+
+      #mode-position,
+      #mode-hint,
+      #round-status {
+        margin: 0;
+        color: #9ca3af;
+      }
+
+      #mode-position {
+        margin-top: 0.35rem;
+        font-size: 0.8rem;
+        letter-spacing: 0.04em;
+      }
+
+      #mode-hint {
+        margin: -0.75rem 0 1rem;
+        font-size: 0.75rem;
       }
 
       button.settings-button {
@@ -75,6 +97,13 @@
         font-weight: 300;
         letter-spacing: 0.04em;
         line-height: 1;
+      }
+
+      #round-status {
+        min-height: 1.5em;
+        margin-top: -1.5rem;
+        margin-bottom: 1rem;
+        font-variant-numeric: tabular-nums;
       }
 
       .controls {
@@ -127,6 +156,10 @@
         border: 1px solid #4b5563;
         border-radius: 1rem;
         box-shadow: 0 1.5rem 4rem #0008;
+      }
+
+      dialog [hidden] {
+        display: none !important;
       }
 
       dialog::backdrop {
@@ -203,9 +236,12 @@
     </style>
   </head>
   <body>
-    <main>
+    <main id="timer-carousel" role="region" aria-label="Timer modes" aria-roledescription="carousel" tabindex="0">
       <div class="heading-row">
-        <h1>Stopwatch</h1>
+        <div>
+          <h1 id="mode-title">Stopwatch</h1>
+          <p id="mode-position" aria-live="polite">Timer 1 of 2</p>
+        </div>
         <button id="settings-open" class="settings-button" type="button" aria-label="Settings" aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path fill="currentColor" d="M10 2h4l.5 3a7.5 7.5 0 0 1 1.8 1l2.8-1 2 3.5-2.4 2a7.5 7.5 0 0 1 0 3l2.4 2-2 3.5-2.8-1a7.5 7.5 0 0 1-1.8 1L14 22h-4l-.5-3a7.5 7.5 0 0 1-1.8-1l-2.8 1-2-3.5 2.4-2a7.5 7.5 0 0 1 0-3l-2.4-2 2-3.5 2.8 1a7.5 7.5 0 0 1 1.8-1L10 2Z"/>
@@ -213,7 +249,9 @@
           </svg>
         </button>
       </div>
+      <p id="mode-hint">Swipe or use the left and right arrow keys to switch timers</p>
       <p id="display" role="timer" aria-label="Elapsed time" aria-live="off">00:00</p>
+      <p id="round-status" hidden></p>
       <div class="controls">
         <button id="start" class="primary" type="button">Start</button>
         <button id="stop" type="button" disabled>Stop</button>
@@ -225,6 +263,14 @@
         <h2 id="settings-title">Stopwatch settings</h2>
         <label for="countdown-seconds">Countdown before start (seconds)</label>
         <input id="countdown-seconds" name="countdown-seconds" type="number" min="0" step="1" inputmode="numeric" aria-describedby="settings-error">
+        <div id="interval-settings" hidden>
+          <label for="interval-minutes">Round duration (minutes)</label>
+          <input id="interval-minutes" name="interval-minutes" type="number" min="0" step="1" inputmode="numeric">
+          <label for="interval-seconds">Round duration (seconds)</label>
+          <input id="interval-seconds" name="interval-seconds" type="number" min="0" max="59" step="1" inputmode="numeric">
+          <label for="interval-rounds">Total rounds</label>
+          <input id="interval-rounds" name="interval-rounds" type="number" min="1" step="1" inputmode="numeric">
+        </div>
         <p id="settings-error" class="settings-error" role="alert"></p>
         <div class="settings-actions">
           <button id="settings-cancel" type="button">Cancel</button>
@@ -238,9 +284,18 @@
       const stopButton = document.querySelector("#stop");
       const resetButton = document.querySelector("#reset");
       const settingsOpenButton = document.querySelector("#settings-open");
+      const timerCarousel = document.querySelector("#timer-carousel");
+      const modeTitle = document.querySelector("#mode-title");
+      const modePosition = document.querySelector("#mode-position");
+      const roundStatus = document.querySelector("#round-status");
       const settingsDialog = document.querySelector("#settings-dialog");
       const settingsForm = document.querySelector("#settings-form");
       const countdownInput = document.querySelector("#countdown-seconds");
+      const countdownLabel = document.querySelector('label[for="countdown-seconds"]');
+      const intervalSettings = document.querySelector("#interval-settings");
+      const intervalMinutesInput = document.querySelector("#interval-minutes");
+      const intervalSecondsInput = document.querySelector("#interval-seconds");
+      const intervalRoundsInput = document.querySelector("#interval-rounds");
       const settingsError = document.querySelector("#settings-error");
 
       let elapsedMilliseconds = 0;
@@ -250,31 +305,141 @@
       let countdownDeadline = null;
       let phase = "idle";
       let hasStarted = false;
+      let currentMode = "stopwatch";
+      let intervalDurationSeconds = 60;
+      let intervalTotalRounds = 1;
+      let intervalSessionDurationSeconds = 60;
+      let intervalSessionTotalRounds = 1;
+      let intervalCurrentRound = 0;
+      let intervalRemainingMilliseconds = 60_000;
+      let intervalDeadline = null;
+      let intervalPhase = "idle";
+      let pointerStart = null;
+
+      function currentTimerIsActive() {
+        return currentMode === "stopwatch"
+          ? phase !== "idle"
+          : intervalPhase === "running";
+      }
+
+      function switchMode(mode) {
+        if (mode === currentMode || currentTimerIsActive()) return;
+
+        currentMode = mode;
+        const isStopwatch = mode === "stopwatch";
+        modeTitle.textContent = isStopwatch ? "Stopwatch" : "Intervals";
+        modePosition.textContent = isStopwatch ? "Timer 1 of 2" : "Timer 2 of 2";
+        timerCarousel.setAttribute(
+          "aria-label",
+          `${isStopwatch ? "Stopwatch" : "Intervals"}, ${isStopwatch ? "1" : "2"} of 2`
+        );
+        render();
+        updateControls();
+      }
+
+      function navigateMode(direction) {
+        if (currentTimerIsActive()) return;
+        if (direction === "next" && currentMode === "stopwatch") switchMode("interval");
+        if (direction === "previous" && currentMode === "interval") switchMode("stopwatch");
+      }
+
+      timerCarousel.addEventListener("keydown", event => {
+        if (event.target !== timerCarousel || settingsDialog.open) return;
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          navigateMode(event.key === "ArrowRight" ? "next" : "previous");
+        }
+      });
+
+      timerCarousel.addEventListener("pointerdown", event => {
+        if (event.target.closest("button, input, dialog")) {
+          pointerStart = null;
+          return;
+        }
+        pointerStart = { x: event.clientX, y: event.clientY };
+      });
+      timerCarousel.addEventListener("pointerup", event => {
+        if (pointerStart === null) return;
+        const deltaX = event.clientX - pointerStart.x;
+        const deltaY = event.clientY - pointerStart.y;
+        pointerStart = null;
+        if (Math.abs(deltaX) < 50 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) return;
+        navigateMode(deltaX < 0 ? "next" : "previous");
+      });
+      timerCarousel.addEventListener("pointercancel", () => {
+        pointerStart = null;
+      });
 
       function openSettings() {
         countdownInput.value = String(configuredCountdownSeconds);
+        intervalMinutesInput.value = String(Math.floor(intervalDurationSeconds / 60));
+        intervalSecondsInput.value = String(intervalDurationSeconds % 60);
+        intervalRoundsInput.value = String(intervalTotalRounds);
+        const isStopwatch = currentMode === "stopwatch";
+        document.querySelector("#settings-title").textContent =
+          isStopwatch ? "Stopwatch settings" : "Interval settings";
+        countdownInput.hidden = !isStopwatch;
+        countdownLabel.hidden = !isStopwatch;
+        intervalSettings.hidden = isStopwatch;
         settingsError.textContent = "";
         settingsDialog.showModal();
-        countdownInput.focus();
+        (isStopwatch ? countdownInput : intervalMinutesInput).focus();
       }
 
       function applySettings(event) {
         event.preventDefault();
-        const value = countdownInput.value.trim();
-        const seconds = Number(value);
+        if (currentMode === "stopwatch") {
+          const value = countdownInput.value.trim();
+          const seconds = Number(value);
+          if (!/^\d+$/.test(value) || !Number.isSafeInteger(seconds)) {
+            settingsError.textContent = "Enter a non-negative whole number of seconds.";
+            countdownInput.focus();
+            return;
+          }
+          configuredCountdownSeconds = seconds;
+        } else {
+          const minutesValue = intervalMinutesInput.value.trim();
+          const secondsValue = intervalSecondsInput.value.trim();
+          const roundsValue = intervalRoundsInput.value.trim();
+          const minutes = Number(minutesValue);
+          const seconds = Number(secondsValue);
+          const rounds = Number(roundsValue);
+          const durationSeconds = minutes * 60 + seconds;
+          const validDuration = /^\d+$/.test(minutesValue)
+            && /^\d+$/.test(secondsValue)
+            && Number.isSafeInteger(minutes)
+            && Number.isSafeInteger(seconds)
+            && seconds <= 59
+            && durationSeconds > 0
+            && Number.isSafeInteger(durationSeconds * 1000);
+          const validRounds = /^\d+$/.test(roundsValue)
+            && Number.isSafeInteger(rounds)
+            && rounds > 0;
 
-        if (!/^\d+$/.test(value) || !Number.isSafeInteger(seconds)) {
-          settingsError.textContent = "Enter a non-negative whole number of seconds.";
-          countdownInput.focus();
-          return;
+          if (!validDuration || !validRounds) {
+            settingsError.textContent =
+              "Enter a positive duration with 0–59 seconds and a positive whole number of rounds.";
+            return;
+          }
+
+          intervalDurationSeconds = durationSeconds;
+          intervalTotalRounds = rounds;
+          if (intervalPhase !== "running" && intervalPhase !== "paused") {
+            intervalCurrentRound = 0;
+            intervalRemainingMilliseconds = intervalDurationSeconds * 1000;
+            intervalSessionDurationSeconds = intervalDurationSeconds;
+            intervalSessionTotalRounds = intervalTotalRounds;
+            intervalDeadline = null;
+            intervalPhase = "idle";
+          }
         }
 
-        configuredCountdownSeconds = seconds;
         settingsDialog.close();
         settingsOpenButton.focus();
+        render();
       }
 
-      function render() {
+      function renderStopwatch() {
         if (phase === "countdown") {
           const remainingMilliseconds = countdownDeadline - Date.now();
 
@@ -283,7 +448,6 @@
             hasStarted = true;
             startedAt = countdownDeadline;
             countdownDeadline = null;
-            updateControls();
           } else {
             display.textContent = formatTime(Math.ceil(remainingMilliseconds / 1000));
             display.setAttribute("aria-label", "Countdown remaining");
@@ -295,6 +459,7 @@
           + (phase === "running" && startedAt !== null ? Date.now() - startedAt : 0);
         display.textContent = formatTime(Math.floor(elapsed / 1000));
         display.setAttribute("aria-label", "Elapsed time");
+        roundStatus.hidden = true;
       }
 
       function formatTime(totalSeconds) {
@@ -303,9 +468,74 @@
         return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
       }
 
+      function updateInterval(now) {
+        if (intervalPhase !== "running" || intervalDeadline === null || now < intervalDeadline) return;
+
+        const durationMilliseconds = intervalSessionDurationSeconds * 1000;
+        const completedRounds = Math.floor((now - intervalDeadline) / durationMilliseconds) + 1;
+        if (intervalCurrentRound + completedRounds > intervalSessionTotalRounds) {
+          intervalCurrentRound = intervalSessionTotalRounds;
+          intervalRemainingMilliseconds = 0;
+          intervalDeadline = null;
+          intervalPhase = "complete";
+          updateControls();
+          return;
+        }
+
+        intervalCurrentRound += completedRounds;
+        intervalDeadline += completedRounds * durationMilliseconds;
+        intervalRemainingMilliseconds = intervalDeadline - now;
+      }
+
+      function renderInterval() {
+        const now = Date.now();
+        updateInterval(now);
+        const sessionActive = intervalPhase === "running"
+          || intervalPhase === "paused"
+          || intervalPhase === "complete";
+        const durationSeconds = sessionActive ? intervalSessionDurationSeconds : intervalDurationSeconds;
+        const totalRounds = sessionActive ? intervalSessionTotalRounds : intervalTotalRounds;
+        const remainingMilliseconds = intervalPhase === "running" && intervalDeadline !== null
+          ? Math.max(0, intervalDeadline - now)
+          : intervalRemainingMilliseconds;
+        const remainingSeconds = Math.ceil(remainingMilliseconds / 1000);
+
+        display.textContent = formatTime(remainingSeconds);
+        roundStatus.hidden = false;
+        if (intervalPhase === "complete") {
+          roundStatus.textContent = `${totalRounds} of ${totalRounds} rounds complete`;
+        } else if (intervalCurrentRound > 0) {
+          roundStatus.textContent = `Round ${intervalCurrentRound} of ${totalRounds}`;
+        } else {
+          roundStatus.textContent = `${totalRounds} ${totalRounds === 1 ? "round" : "rounds"}`;
+        }
+        display.setAttribute(
+          "aria-label",
+          intervalPhase === "complete"
+            ? "Interval complete, 00:00 remaining"
+            : `Time remaining, round ${intervalCurrentRound || 1} of ${totalRounds}`
+        );
+
+        if (intervalPhase === "idle") {
+          display.textContent = formatTime(durationSeconds);
+          display.setAttribute("aria-label", "Interval duration");
+        }
+      }
+
+      function render() {
+        if (currentMode === "stopwatch") renderStopwatch();
+        else renderInterval();
+        if (!timerIsRunning()) stopRefresh();
+      }
+
+      function timerIsRunning() {
+        return currentMode === "stopwatch" ? phase !== "idle" : intervalPhase === "running";
+      }
+
       function updateControls() {
-        startButton.disabled = phase !== "idle";
-        stopButton.disabled = phase === "idle";
+        const active = timerIsRunning();
+        startButton.disabled = active;
+        stopButton.disabled = !active;
       }
 
       function startRefresh() {
@@ -321,7 +551,7 @@
         }
       }
 
-      function start() {
+      function startStopwatch() {
         if (phase !== "idle") return;
 
         if (!hasStarted && elapsedMilliseconds === 0 && configuredCountdownSeconds > 0) {
@@ -332,32 +562,77 @@
           hasStarted = true;
           startedAt = Date.now();
         }
+      }
+
+      function startInterval() {
+        if (intervalPhase === "running") return;
+        if (intervalPhase !== "paused") {
+          intervalSessionDurationSeconds = intervalDurationSeconds;
+          intervalSessionTotalRounds = intervalTotalRounds;
+          intervalCurrentRound = 1;
+          intervalRemainingMilliseconds = intervalSessionDurationSeconds * 1000;
+        }
+        intervalDeadline = Date.now() + intervalRemainingMilliseconds;
+        intervalPhase = "running";
+      }
+
+      function start() {
+        if (currentMode === "stopwatch") startStopwatch();
+        else startInterval();
         render();
-        startRefresh();
+        if (timerIsRunning()) startRefresh();
         updateControls();
       }
 
-      function stop() {
+      function stopStopwatch() {
         if (phase === "idle") return;
-
         if (phase === "running" && startedAt !== null) {
           elapsedMilliseconds += Date.now() - startedAt;
         }
         startedAt = null;
         countdownDeadline = null;
         phase = "idle";
-        stopRefresh();
+      }
+
+      function stopInterval() {
+        if (intervalPhase !== "running") return;
+        updateInterval(Date.now());
+        if (intervalPhase === "running" && intervalDeadline !== null) {
+          intervalRemainingMilliseconds = Math.max(0, intervalDeadline - Date.now());
+          intervalDeadline = null;
+          intervalPhase = "paused";
+        }
+      }
+
+      function stop() {
+        if (currentMode === "stopwatch") stopStopwatch();
+        else stopInterval();
+        if (!timerIsRunning()) stopRefresh();
         render();
         updateControls();
       }
 
-      function reset() {
-        stopRefresh();
+      function resetStopwatch() {
         elapsedMilliseconds = 0;
         startedAt = null;
         countdownDeadline = null;
         phase = "idle";
         hasStarted = false;
+      }
+
+      function resetInterval() {
+        intervalDeadline = null;
+        intervalCurrentRound = 0;
+        intervalRemainingMilliseconds = intervalDurationSeconds * 1000;
+        intervalSessionDurationSeconds = intervalDurationSeconds;
+        intervalSessionTotalRounds = intervalTotalRounds;
+        intervalPhase = "idle";
+      }
+
+      function reset() {
+        if (currentMode === "stopwatch") resetStopwatch();
+        else resetInterval();
+        if (!timerIsRunning()) stopRefresh();
         render();
         updateControls();
       }
@@ -375,6 +650,7 @@
         if (event.target === settingsDialog) settingsDialog.close();
       });
       render();
+      updateControls();
     </script>
   </body>
 </html>
