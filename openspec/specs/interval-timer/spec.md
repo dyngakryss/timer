@@ -22,23 +22,23 @@ The interval timer SHALL let the user configure a positive round duration with a
 - **THEN** the duration is configured in one text field labeled “Round duration (mm:ss)” rather than separate minute and second fields
 
 ### Requirement: Count down and advance through interval rounds
-The interval timer SHALL count down each configured round in minutes and seconds, show the current round out of the configured total, automatically begin the next round at full duration when one remains, and stop at zero after the final round.
+The interval timer SHALL count down each configured round in minutes and seconds, show the current round out of the configured total, automatically begin the next round at full duration when one remains, and stop at zero after the final round. The round status SHALL appear above the countdown at approximately 67% of its text size, show only the current and total values as “X of Y”, and not show a standalone large round numeral beside the countdown.
 
 #### Scenario: Start an interval session
 - **WHEN** the user starts an interval timer while it is reset
-- **THEN** the display counts down the configured duration, shows the current round number in clock-sized type to the left of the countdown, and identifies the first round as 1 of the configured total
+- **THEN** the display counts down the configured duration and shows “1 of <total>” above it at approximately 67% of the countdown text size
 
 #### Scenario: Advance to the next round
 - **WHEN** a round reaches zero and more configured rounds remain
-- **THEN** the current round increases by one and its countdown begins immediately without a rest interval
+- **THEN** the current round increases by one, the status above the countdown updates to “<current> of <total>”, and the next countdown begins immediately without a rest interval
 
 #### Scenario: Complete the final round
 - **WHEN** the final configured round reaches zero
-- **THEN** the timer stops at zero and the displayed round count shows all configured rounds complete
+- **THEN** the timer stops at zero and the status above the countdown shows “<total> of <total>” without additional text
 
 #### Scenario: Keep round information accessible
 - **WHEN** an interval round is displayed
-- **THEN** the current round number is visually positioned to the left of the countdown at the same size, and the current and total round values remain available as a secondary or accessible description
+- **THEN** only the current and total values in “<current> of <total>” format appear above the countdown, the separate large round numeral is absent, and the status remains accessible to assistive technology
 
 ### Requirement: Pause, resume, and reset interval timing
 The interval timer SHALL let the user pause the current round without losing its remaining time or round progress, resume from that point, and reset the session without changing its configured settings.
