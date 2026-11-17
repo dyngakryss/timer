@@ -63,16 +63,16 @@ When a countdown greater than zero is configured and the stopwatch is at zero, a
 - **THEN** the countdown is cancelled, the stopwatch remains stopped at 00:00, and the configured countdown setting remains available for the next start
 
 ### Requirement: Adapt the stopwatch layout to mobile and tablet viewports
-The stopwatch page SHALL remain readable and fully usable on mobile phones and tablets in portrait and landscape orientations, without horizontal overflow or clipped timer controls.
+The stopwatch page SHALL use a borderless layout that lets the timer display occupy the available screen space while keeping the timer readable and all controls usable on mobile phones and tablets in portrait and landscape orientations, without horizontal overflow or clipped timer controls.
 
 #### Scenario: Mobile portrait layout
 - **WHEN** the page is viewed on a mobile phone in portrait orientation
-- **THEN** the timer remains readable and all controls fit within the viewport and can be activated
+- **THEN** the timer uses the available screen space, remains readable, and all controls fit within the viewport and can be activated
 
 #### Scenario: Mobile landscape layout
 - **WHEN** the page is viewed on a mobile phone in landscape orientation
-- **THEN** the timer and all controls remain visible and usable within the viewport height and width
+- **THEN** the timer uses the available screen space while remaining visible with all controls usable within the viewport height and width
 
 #### Scenario: Tablet portrait and landscape layouts
 - **WHEN** the page is viewed on a tablet in portrait or landscape orientation
-- **THEN** the layout adapts to the available space, keeps the timer readable, and displays all controls without horizontal overflow or clipping
+- **THEN** the layout adapts to the available space, keeps the timer display as large as practical, and displays all controls without horizontal overflow or clipping
