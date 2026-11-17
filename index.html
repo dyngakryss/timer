@@ -89,30 +89,25 @@
       #timer-readout {
         display: flex;
         min-width: 0;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: clamp(0.5rem, 3vw, 2rem);
+        gap: 0.25em;
         width: 100%;
         margin: auto 0;
       }
 
-      #round-number {
-        margin: 0;
+      #timer-carousel[data-mode="interval"] #timer-readout {
         font-size: clamp(2.5rem, min(24vw, 30vh), 18rem);
-        font-variant-numeric: tabular-nums;
-        font-weight: 300;
-        letter-spacing: 0.04em;
-        line-height: 1;
       }
 
       #timer-carousel[data-mode="interval"] #display {
-        font-size: clamp(2.5rem, min(24vw, 30vh), 18rem);
+        font-size: 1em;
       }
 
       #round-status {
-        min-height: 1.5em;
-        margin-top: -1.5rem;
-        margin-bottom: 1rem;
+        margin: 0;
+        font-size: 67%;
         font-variant-numeric: tabular-nums;
       }
 
@@ -226,13 +221,11 @@
           padding: 0.5rem 1rem;
         }
 
-        #display,
-        #round-number {
+        #display {
           font-size: clamp(2.5rem, min(18vw, 32vh), 12rem);
         }
 
-        #timer-carousel[data-mode="interval"] #display,
-        #timer-carousel[data-mode="interval"] #round-number {
+        #timer-carousel[data-mode="interval"] #timer-readout {
           font-size: clamp(2.5rem, min(18vw, 32vh), 12rem);
         }
 
@@ -242,8 +235,7 @@
       }
 
       @media (max-width: 480px) {
-        #round-number,
-        #timer-carousel[data-mode="interval"] #display {
+        #timer-carousel[data-mode="interval"] #timer-readout {
           font-size: clamp(2.5rem, 20vw, 12rem);
         }
       }
@@ -263,10 +255,9 @@
         </button>
       </div>
       <div id="timer-readout">
-        <p id="round-number" hidden aria-hidden="true"></p>
+        <p id="round-status" hidden></p>
         <p id="display" role="timer" aria-label="Elapsed time" aria-live="off">00:00</p>
       </div>
-      <p id="round-status" hidden></p>
       <div class="controls">
         <button id="start" class="primary" type="button">Start</button>
         <button id="stop" type="button" disabled>Stop</button>
@@ -299,7 +290,6 @@
       const settingsOpenButton = document.querySelector("#settings-open");
       const timerCarousel = document.querySelector("#timer-carousel");
       const modeTitle = document.querySelector("#mode-title");
-      const roundNumber = document.querySelector("#round-number");
       const roundStatus = document.querySelector("#round-status");
       const settingsDialog = document.querySelector("#settings-dialog");
       const settingsForm = document.querySelector("#settings-form");
@@ -448,7 +438,6 @@
       }
 
       function renderStopwatch() {
-        roundNumber.hidden = true;
         if (phase === "countdown") {
           const remainingMilliseconds = countdownDeadline - Date.now();
 
@@ -509,17 +498,10 @@
           : intervalRemainingMilliseconds;
         const remainingSeconds = Math.ceil(remainingMilliseconds / 1000);
 
-        roundNumber.hidden = false;
-        roundNumber.textContent = String(intervalCurrentRound || 1);
         display.textContent = formatTime(remainingSeconds);
         roundStatus.hidden = false;
-        if (intervalPhase === "complete") {
-          roundStatus.textContent = `${totalRounds} of ${totalRounds} rounds complete`;
-        } else if (intervalCurrentRound > 0) {
-          roundStatus.textContent = `Round ${intervalCurrentRound} of ${totalRounds}`;
-        } else {
-          roundStatus.textContent = `${totalRounds} ${totalRounds === 1 ? "round" : "rounds"}`;
-        }
+        roundStatus.textContent =
+          `${intervalPhase === "complete" ? totalRounds : intervalCurrentRound || 1} of ${totalRounds}`;
         display.setAttribute(
           "aria-label",
           intervalPhase === "complete"
