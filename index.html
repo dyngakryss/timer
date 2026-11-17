@@ -20,14 +20,15 @@
       body {
         display: grid;
         min-height: 100vh;
+        min-height: 100svh;
         margin: 0;
         place-items: center;
-        padding: 1.5rem;
+        padding: clamp(0.5rem, 4vw, 1.5rem);
       }
 
       main {
         width: min(100%, 32rem);
-        padding: clamp(2rem, 8vw, 4rem);
+        padding: clamp(1.25rem, 8vw, 4rem);
         text-align: center;
         background: #1f2937;
         border: 1px solid #374151;
@@ -36,7 +37,7 @@
       }
 
       h1 {
-        margin: 0 0 2rem;
+        margin: 0 0 clamp(0.75rem, 4vh, 2rem);
         color: #d1d5db;
         font-size: 1rem;
         font-weight: 600;
@@ -45,8 +46,8 @@
       }
 
       #display {
-        margin: 0 0 2.5rem;
-        font-size: clamp(4rem, 18vw, 7rem);
+        margin: 0 0 clamp(1rem, 5vh, 2.5rem);
+        font-size: clamp(3rem, 18vw, 7rem);
         font-variant-numeric: tabular-nums;
         font-weight: 300;
         letter-spacing: 0.04em;
@@ -93,6 +94,29 @@
       button:disabled {
         cursor: not-allowed;
         opacity: 0.5;
+      }
+
+      @media (orientation: landscape) and (max-height: 500px) {
+        body {
+          padding: 0.5rem;
+        }
+
+        main {
+          padding: 0.75rem 1.5rem;
+        }
+
+        h1 {
+          margin-bottom: 0.5rem;
+        }
+
+        #display {
+          margin-bottom: 1rem;
+          font-size: clamp(2.5rem, 15vh, 4rem);
+        }
+
+        button {
+          padding: 0.6rem 1rem;
+        }
       }
     </style>
   </head>
