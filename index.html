@@ -36,13 +36,27 @@
         box-shadow: 0 1.5rem 4rem #0004;
       }
 
+      .heading-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: clamp(0.75rem, 4vh, 2rem);
+      }
+
       h1 {
-        margin: 0 0 clamp(0.75rem, 4vh, 2rem);
+        margin: 0;
         color: #d1d5db;
         font-size: 1rem;
         font-weight: 600;
         letter-spacing: 0.16em;
         text-transform: uppercase;
+      }
+
+      button.settings-button {
+        min-width: 0;
+        padding: 0.55rem 0.9rem;
+        font-size: 0.875rem;
       }
 
       #display {
@@ -96,6 +110,65 @@
         opacity: 0.5;
       }
 
+      dialog {
+        width: min(calc(100% - 2rem), 24rem);
+        padding: 1.5rem;
+        color: #f9fafb;
+        background: #1f2937;
+        border: 1px solid #4b5563;
+        border-radius: 1rem;
+        box-shadow: 0 1.5rem 4rem #0008;
+      }
+
+      dialog::backdrop {
+        background: #0009;
+      }
+
+      dialog h2 {
+        margin: 0 0 1.25rem;
+        font-size: 1.25rem;
+      }
+
+      dialog label {
+        display: block;
+        margin-bottom: 0.5rem;
+        text-align: left;
+      }
+
+      dialog input {
+        width: 100%;
+        padding: 0.75rem;
+        color: inherit;
+        font: inherit;
+        background: #111827;
+        border: 1px solid #6b7280;
+        border-radius: 0.5rem;
+      }
+
+      dialog input:focus-visible {
+        outline: 3px solid #93c5fd;
+        outline-offset: 2px;
+      }
+
+      .settings-error {
+        min-height: 1.5em;
+        margin: 0.5rem 0;
+        color: #fca5a5;
+        text-align: left;
+      }
+
+      .settings-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+
+      .settings-actions button {
+        min-width: 0;
+      }
+
       @media (orientation: landscape) and (max-height: 500px) {
         body {
           padding: 0.5rem;
@@ -106,7 +179,7 @@
         }
 
         h1 {
-          margin-bottom: 0.5rem;
+          margin-bottom: 0;
         }
 
         #display {
@@ -122,7 +195,10 @@
   </head>
   <body>
     <main>
-      <h1>Stopwatch</h1>
+      <div class="heading-row">
+        <h1>Stopwatch</h1>
+        <button id="settings-open" class="settings-button" type="button" aria-haspopup="dialog">Settings</button>
+      </div>
       <p id="display" role="timer" aria-label="Elapsed time" aria-live="off">00:00</p>
       <div class="controls">
         <button id="start" class="primary" type="button">Start</button>
@@ -130,63 +206,160 @@
         <button id="reset" type="button">Reset</button>
       </div>
     </main>
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
+      <form id="settings-form" novalidate>
+        <h2 id="settings-title">Stopwatch settings</h2>
+        <label for="countdown-seconds">Countdown before start (seconds)</label>
+        <input id="countdown-seconds" name="countdown-seconds" type="number" min="0" step="1" inputmode="numeric" aria-describedby="settings-error">
+        <p id="settings-error" class="settings-error" role="alert"></p>
+        <div class="settings-actions">
+          <button id="settings-cancel" type="button">Cancel</button>
+          <button class="primary" type="submit">Apply</button>
+        </div>
+      </form>
+    </dialog>
     <script>
       const display = document.querySelector("#display");
       const startButton = document.querySelector("#start");
       const stopButton = document.querySelector("#stop");
       const resetButton = document.querySelector("#reset");
+      const settingsOpenButton = document.querySelector("#settings-open");
+      const settingsDialog = document.querySelector("#settings-dialog");
+      const settingsForm = document.querySelector("#settings-form");
+      const countdownInput = document.querySelector("#countdown-seconds");
+      const settingsError = document.querySelector("#settings-error");
 
       let elapsedMilliseconds = 0;
       let startedAt = null;
       let intervalId = null;
+      let configuredCountdownSeconds = 0;
+      let countdownDeadline = null;
+      let phase = "idle";
+      let hasStarted = false;
+
+      function openSettings() {
+        countdownInput.value = String(configuredCountdownSeconds);
+        settingsError.textContent = "";
+        settingsDialog.showModal();
+        countdownInput.focus();
+      }
+
+      function applySettings(event) {
+        event.preventDefault();
+        const value = countdownInput.value.trim();
+        const seconds = Number(value);
+
+        if (!/^\d+$/.test(value) || !Number.isSafeInteger(seconds)) {
+          settingsError.textContent = "Enter a non-negative whole number of seconds.";
+          countdownInput.focus();
+          return;
+        }
+
+        configuredCountdownSeconds = seconds;
+        settingsDialog.close();
+        settingsOpenButton.focus();
+      }
 
       function render() {
+        if (phase === "countdown") {
+          const remainingMilliseconds = countdownDeadline - Date.now();
+
+          if (remainingMilliseconds <= 0) {
+            phase = "running";
+            hasStarted = true;
+            startedAt = countdownDeadline;
+            countdownDeadline = null;
+            updateControls();
+          } else {
+            display.textContent = formatTime(Math.ceil(remainingMilliseconds / 1000));
+            display.setAttribute("aria-label", "Countdown remaining");
+            return;
+          }
+        }
+
         const elapsed = elapsedMilliseconds
-          + (startedAt === null ? 0 : Date.now() - startedAt);
-        const totalSeconds = Math.floor(elapsed / 1000);
+          + (phase === "running" && startedAt !== null ? Date.now() - startedAt : 0);
+        display.textContent = formatTime(Math.floor(elapsed / 1000));
+        display.setAttribute("aria-label", "Elapsed time");
+      }
+
+      function formatTime(totalSeconds) {
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
-
-        display.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
       }
 
-      function start() {
-        if (startedAt !== null) return;
-
-        startedAt = Date.now();
-        render();
-        intervalId = window.setInterval(render, 100);
-        startButton.disabled = true;
-        stopButton.disabled = false;
+      function updateControls() {
+        startButton.disabled = phase !== "idle";
+        stopButton.disabled = phase === "idle";
       }
 
-      function stop() {
-        if (startedAt === null) return;
-
-        elapsedMilliseconds += Date.now() - startedAt;
-        startedAt = null;
-        window.clearInterval(intervalId);
-        intervalId = null;
-        render();
-        startButton.disabled = false;
-        stopButton.disabled = true;
+      function startRefresh() {
+        if (intervalId === null) {
+          intervalId = window.setInterval(render, 100);
+        }
       }
 
-      function reset() {
+      function stopRefresh() {
         if (intervalId !== null) {
           window.clearInterval(intervalId);
           intervalId = null;
         }
+      }
+
+      function start() {
+        if (phase !== "idle") return;
+
+        if (!hasStarted && elapsedMilliseconds === 0 && configuredCountdownSeconds > 0) {
+          phase = "countdown";
+          countdownDeadline = Date.now() + configuredCountdownSeconds * 1000;
+        } else {
+          phase = "running";
+          hasStarted = true;
+          startedAt = Date.now();
+        }
+        render();
+        startRefresh();
+        updateControls();
+      }
+
+      function stop() {
+        if (phase === "idle") return;
+
+        if (phase === "running" && startedAt !== null) {
+          elapsedMilliseconds += Date.now() - startedAt;
+        }
+        startedAt = null;
+        countdownDeadline = null;
+        phase = "idle";
+        stopRefresh();
+        render();
+        updateControls();
+      }
+
+      function reset() {
+        stopRefresh();
         elapsedMilliseconds = 0;
         startedAt = null;
+        countdownDeadline = null;
+        phase = "idle";
+        hasStarted = false;
         render();
-        startButton.disabled = false;
-        stopButton.disabled = true;
+        updateControls();
       }
 
       startButton.addEventListener("click", start);
       stopButton.addEventListener("click", stop);
       resetButton.addEventListener("click", reset);
+      settingsOpenButton.addEventListener("click", openSettings);
+      settingsForm.addEventListener("submit", applySettings);
+      document.querySelector("#settings-cancel").addEventListener("click", () => {
+        settingsDialog.close();
+        settingsOpenButton.focus();
+      });
+      settingsDialog.addEventListener("click", event => {
+        if (event.target === settingsDialog) settingsDialog.close();
+      });
       render();
     </script>
   </body>
