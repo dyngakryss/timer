@@ -37,7 +37,27 @@
       }
 
       #timer-carousel {
+        position: relative;
+        isolation: isolate;
         touch-action: pan-y;
+      }
+
+      #timer-carousel::before {
+        position: absolute;
+        z-index: 0;
+        inset: 0;
+        background-image: url("spangahanboll.png");
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: min(72vw, 55vh, 28rem) auto;
+        content: "";
+        opacity: 0.14;
+        pointer-events: none;
+      }
+
+      #timer-carousel > * {
+        position: relative;
+        z-index: 1;
       }
 
       .heading-row {
