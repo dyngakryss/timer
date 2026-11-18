@@ -72,6 +72,10 @@
         border-radius: 50%;
       }
 
+      button.settings-button[hidden] {
+        display: none;
+      }
+
       .settings-button svg {
         width: 1.25rem;
         height: 1.25rem;
@@ -263,7 +267,7 @@
         <div>
           <h1 id="mode-title">Stopwatch</h1>
         </div>
-        <button id="settings-open" class="settings-button" type="button" aria-label="Settings" aria-haspopup="dialog">
+        <button id="settings-open" class="settings-button" type="button" aria-label="Settings" aria-haspopup="dialog" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path fill="currentColor" d="M10 2h4l.5 3a7.5 7.5 0 0 1 1.8 1l2.8-1 2 3.5-2.4 2a7.5 7.5 0 0 1 0 3l2.4 2-2 3.5-2.8-1a7.5 7.5 0 0 1-1.8 1L14 22h-4l-.5-3a7.5 7.5 0 0 1-1.8-1l-2.8 1-2-3.5 2.4-2a7.5 7.5 0 0 1 0-3l-2.4-2 2-3.5 2.8 1a7.5 7.5 0 0 1 1.8-1L10 2Z"/>
             <circle cx="12" cy="12" r="3.25" fill="#1f2937"/>
@@ -282,12 +286,8 @@
     </main>
     <dialog id="settings-dialog" aria-labelledby="settings-title">
       <form id="settings-form" novalidate>
-        <h2 id="settings-title">Stopwatch settings</h2>
-        <label for="countdown-seconds">Countdown before start (seconds)</label>
-        <input id="countdown-seconds" name="countdown-seconds" type="number" min="0" step="1" inputmode="numeric" aria-describedby="settings-error">
+        <h2 id="settings-title">Interval settings</h2>
         <div id="interval-settings" hidden>
-          <label for="interval-countdown-seconds">Countdown before start (seconds)</label>
-          <input id="interval-countdown-seconds" name="interval-countdown-seconds" type="number" min="0" step="1" inputmode="numeric" aria-describedby="settings-error">
           <label for="interval-duration">Round duration (mm:ss)</label>
           <input id="interval-duration" name="interval-duration" type="text" inputmode="text" placeholder="01:30" autocomplete="off" spellcheck="false" aria-describedby="settings-error">
           <label for="interval-rounds">Total rounds</label>
@@ -300,8 +300,6 @@
           <input id="tabata-rest-duration" name="tabata-rest-duration" type="text" inputmode="text" placeholder="00:10" autocomplete="off" spellcheck="false" aria-describedby="settings-error">
           <label for="tabata-rounds">Total rounds</label>
           <input id="tabata-rounds" name="tabata-rounds" type="number" min="1" step="1" inputmode="numeric">
-          <label for="tabata-countdown-seconds">Countdown before start (seconds)</label>
-          <input id="tabata-countdown-seconds" name="tabata-countdown-seconds" type="number" min="0" step="1" inputmode="numeric" aria-describedby="settings-error">
         </div>
         <p id="settings-error" class="settings-error" role="alert"></p>
         <div class="settings-actions">
@@ -321,17 +319,13 @@
       const roundStatus = document.querySelector("#round-status");
       const settingsDialog = document.querySelector("#settings-dialog");
       const settingsForm = document.querySelector("#settings-form");
-      const countdownInput = document.querySelector("#countdown-seconds");
-      const countdownLabel = document.querySelector('label[for="countdown-seconds"]');
       const intervalSettings = document.querySelector("#interval-settings");
-      const intervalCountdownInput = document.querySelector("#interval-countdown-seconds");
       const intervalDurationInput = document.querySelector("#interval-duration");
       const intervalRoundsInput = document.querySelector("#interval-rounds");
       const tabataSettings = document.querySelector("#tabata-settings");
       const tabataWorkDurationInput = document.querySelector("#tabata-work-duration");
       const tabataRestDurationInput = document.querySelector("#tabata-rest-duration");
       const tabataRoundsInput = document.querySelector("#tabata-rounds");
-      const tabataCountdownInput = document.querySelector("#tabata-countdown-seconds");
       const settingsError = document.querySelector("#settings-error");
 
       let elapsedMilliseconds = 0;
@@ -341,8 +335,14 @@
       let screenWakeLockRequest = null;
       let screenWakeLockGeneration = 0;
       let screenWakeLockUnavailable = false;
-      let configuredCountdownSeconds = 0;
-      let intervalConfiguredCountdownSeconds = 0;
+      const STARTUP_COUNTDOWN_SECONDS = 10;
+      const COUNTDOWN_BEEP_FREQUENCY = 880;
+      const SESSION_START_BEEP_FREQUENCY = 784;
+      const COUNTDOWN_BEEP_DURATION_SECONDS = 0.12;
+      const SESSION_START_BEEP_DURATION_SECONDS = 0.9;
+      const SESSION_START_BEEP_GAIN = 0.24;
+      let audioContext = null;
+      let playedStartupCueSeconds = new Set();
       let countdownDeadline = null;
       let phase = "idle";
       let hasStarted = false;
@@ -359,7 +359,6 @@
       let tabataWorkDurationSeconds = 20;
       let tabataRestDurationSeconds = 10;
       let tabataTotalRounds = 8;
-      let tabataConfiguredCountdownSeconds = 0;
       let tabataSessionWorkDurationSeconds = 20;
       let tabataSessionRestDurationSeconds = 10;
       let tabataSessionTotalRounds = 8;
@@ -384,6 +383,7 @@
 
         currentMode = mode;
         timerCarousel.dataset.mode = mode;
+        settingsOpenButton.hidden = mode === "stopwatch";
         const modeName = { stopwatch: "Stopwatch", interval: "Intervals", tabata: "Tabata" }[mode];
         modeTitle.textContent = modeName;
         timerCarousel.setAttribute("aria-label", modeName);
@@ -427,43 +427,26 @@
       });
 
       function openSettings() {
-        countdownInput.value = String(configuredCountdownSeconds);
-        intervalCountdownInput.value = String(intervalConfiguredCountdownSeconds);
         intervalDurationInput.value = formatTime(intervalDurationSeconds);
         intervalRoundsInput.value = String(intervalTotalRounds);
         tabataWorkDurationInput.value = formatTime(tabataWorkDurationSeconds);
         tabataRestDurationInput.value = formatTime(tabataRestDurationSeconds);
         tabataRoundsInput.value = String(tabataTotalRounds);
-        tabataCountdownInput.value = String(tabataConfiguredCountdownSeconds);
-        const isStopwatch = currentMode === "stopwatch";
         const isInterval = currentMode === "interval";
         document.querySelector("#settings-title").textContent =
-          isStopwatch ? "Stopwatch settings" : isInterval ? "Interval settings" : "Tabata settings";
-        countdownInput.hidden = !isStopwatch;
-        countdownLabel.hidden = !isStopwatch;
+          isInterval ? "Interval settings" : "Tabata settings";
         intervalSettings.hidden = !isInterval;
         tabataSettings.hidden = currentMode !== "tabata";
         settingsError.textContent = "";
         settingsDialog.showModal();
-        (isStopwatch ? countdownInput : isInterval ? intervalDurationInput : tabataWorkDurationInput).focus();
+        (isInterval ? intervalDurationInput : tabataWorkDurationInput).focus();
       }
 
       function applySettings(event) {
         event.preventDefault();
-        if (currentMode === "stopwatch") {
-          const value = countdownInput.value.trim();
-          const seconds = Number(value);
-          if (!/^\d+$/.test(value) || !Number.isSafeInteger(seconds)) {
-            settingsError.textContent = "Enter a non-negative whole number of seconds.";
-            countdownInput.focus();
-            return;
-          }
-          configuredCountdownSeconds = seconds;
-        } else if (currentMode === "interval") {
-          const countdownValue = intervalCountdownInput.value.trim();
+        if (currentMode === "interval") {
           const durationValue = intervalDurationInput.value.trim();
           const roundsValue = intervalRoundsInput.value.trim();
-          const countdownSeconds = Number(countdownValue);
           const durationMatch = /^(\d+):(\d{2})$/.exec(durationValue);
           const rounds = Number(roundsValue);
           const minutes = durationMatch === null ? NaN : Number(durationMatch[1]);
@@ -478,15 +461,6 @@
           const validRounds = /^\d+$/.test(roundsValue)
             && Number.isSafeInteger(rounds)
             && rounds > 0;
-          const validCountdown = /^\d+$/.test(countdownValue)
-            && Number.isSafeInteger(countdownSeconds);
-
-          if (!validCountdown) {
-            settingsError.textContent = "Enter a non-negative whole number of seconds.";
-            intervalCountdownInput.focus();
-            return;
-          }
-
           if (!validDuration || !validRounds) {
             settingsError.textContent =
               "Enter a positive duration as minutes:seconds (for example, 1:30) and a positive whole number of rounds.";
@@ -494,7 +468,6 @@
             return;
           }
 
-          intervalConfiguredCountdownSeconds = countdownSeconds;
           intervalDurationSeconds = durationSeconds;
           intervalTotalRounds = rounds;
           if (intervalPhase !== "running" && intervalPhase !== "paused" && intervalPhase !== "countdown") {
@@ -509,9 +482,7 @@
           const workDuration = parseDuration(tabataWorkDurationInput.value);
           const restDuration = parseDuration(tabataRestDurationInput.value);
           const roundsValue = tabataRoundsInput.value.trim();
-          const countdownValue = tabataCountdownInput.value.trim();
           const rounds = Number(roundsValue);
-          const countdownSeconds = Number(countdownValue);
 
           if (workDuration === null || restDuration === null) {
             settingsError.textContent =
@@ -524,16 +495,9 @@
             tabataRoundsInput.focus();
             return;
           }
-          if (!/^\d+$/.test(countdownValue) || !Number.isSafeInteger(countdownSeconds)) {
-            settingsError.textContent = "Enter a non-negative whole number of seconds.";
-            tabataCountdownInput.focus();
-            return;
-          }
-
           tabataWorkDurationSeconds = workDuration;
           tabataRestDurationSeconds = restDuration;
           tabataTotalRounds = rounds;
-          tabataConfiguredCountdownSeconds = countdownSeconds;
           if (!["countdown", "work", "rest", "paused"].includes(tabataPhase)) {
             tabataCurrentRound = 0;
             tabataRemainingMilliseconds = tabataWorkDurationSeconds * 1000;
@@ -556,12 +520,15 @@
           const remainingMilliseconds = countdownDeadline - Date.now();
 
           if (remainingMilliseconds <= 0) {
+            playSessionStartCue();
             phase = "running";
             hasStarted = true;
             startedAt = countdownDeadline;
             countdownDeadline = null;
           } else {
-            display.textContent = formatTime(Math.ceil(remainingMilliseconds / 1000));
+            const remainingSeconds = Math.ceil(remainingMilliseconds / 1000);
+            playStartupCountdownCue(remainingSeconds);
+            display.textContent = formatTime(remainingSeconds);
             display.setAttribute("aria-label", "Countdown remaining");
             return;
           }
@@ -595,12 +562,82 @@
           : null;
       }
 
+      function initializeAudioContext() {
+        const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+        if (typeof AudioContextConstructor !== "function") {
+          console.warn("Web Audio API is not supported; startup sounds are unavailable.");
+          return;
+        }
+
+        if (audioContext === null) {
+          try {
+            audioContext = new AudioContextConstructor();
+          } catch (error) {
+            console.warn("Unable to initialize audio context:", error);
+            return;
+          }
+        }
+
+        if (audioContext.state === "suspended") {
+          void audioContext.resume().catch(error => {
+            console.warn("Unable to resume audio context:", error);
+          });
+        }
+      }
+
+      function playBeep(frequency, durationSeconds, peakGain = 0.2) {
+        if (audioContext === null || audioContext.state !== "running") return;
+
+        try {
+          const startTime = audioContext.currentTime;
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(frequency, startTime);
+          gain.gain.setValueAtTime(0.0001, startTime);
+          gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startTime + durationSeconds);
+          oscillator.connect(gain);
+          gain.connect(audioContext.destination);
+          oscillator.start(startTime);
+          oscillator.stop(startTime + durationSeconds);
+        } catch (error) {
+          console.warn("Unable to play timer cue:", error);
+        }
+      }
+
+      function playStartupCountdownCue(secondsRemaining) {
+        if (
+          secondsRemaining < 1
+          || secondsRemaining > 3
+          || playedStartupCueSeconds.has(secondsRemaining)
+        ) {
+          return;
+        }
+
+        playedStartupCueSeconds.add(secondsRemaining);
+        playBeep(COUNTDOWN_BEEP_FREQUENCY, COUNTDOWN_BEEP_DURATION_SECONDS);
+      }
+
+      function resetStartupCueProgress() {
+        playedStartupCueSeconds = new Set();
+      }
+
+      function playSessionStartCue() {
+        playBeep(
+          SESSION_START_BEEP_FREQUENCY,
+          SESSION_START_BEEP_DURATION_SECONDS,
+          SESSION_START_BEEP_GAIN
+        );
+      }
+
       function updateInterval(now) {
         if (intervalPhase === "countdown") {
           if (intervalCountdownDeadline === null || now < intervalCountdownDeadline) return;
           intervalDeadline = intervalCountdownDeadline + intervalSessionDurationSeconds * 1000;
           intervalCountdownDeadline = null;
           intervalPhase = "running";
+          playSessionStartCue();
         }
         if (intervalPhase !== "running" || intervalDeadline === null || now < intervalDeadline) return;
 
@@ -636,6 +673,7 @@
             : intervalRemainingMilliseconds;
         const remainingSeconds = Math.ceil(remainingMilliseconds / 1000);
 
+        if (intervalPhase === "countdown") playStartupCountdownCue(remainingSeconds);
         display.textContent = formatTime(remainingSeconds);
         roundStatus.hidden = false;
         roundStatus.textContent =
@@ -660,6 +698,7 @@
             tabataCountdownDeadline + tabataSessionWorkDurationSeconds * 1000;
           tabataCountdownDeadline = null;
           tabataPhase = "work";
+          playSessionStartCue();
         }
 
         while (
@@ -706,7 +745,9 @@
           idle: "Work"
         }[visiblePhase];
 
-        display.textContent = formatTime(Math.ceil(remainingMilliseconds / 1000));
+        const remainingSeconds = Math.ceil(remainingMilliseconds / 1000);
+        if (tabataPhase === "countdown") playStartupCountdownCue(remainingSeconds);
+        display.textContent = formatTime(remainingSeconds);
         roundStatus.hidden = false;
         roundStatus.textContent = `${currentRound} of ${tabataPhase === "idle" ? tabataTotalRounds : tabataSessionTotalRounds}`;
         display.setAttribute(
@@ -824,9 +865,10 @@
       function startStopwatch() {
         if (phase !== "idle") return;
 
-        if (!hasStarted && elapsedMilliseconds === 0 && configuredCountdownSeconds > 0) {
+        if (!hasStarted && elapsedMilliseconds === 0) {
+          resetStartupCueProgress();
           phase = "countdown";
-          countdownDeadline = Date.now() + configuredCountdownSeconds * 1000;
+          countdownDeadline = Date.now() + STARTUP_COUNTDOWN_SECONDS * 1000;
         } else {
           phase = "running";
           hasStarted = true;
@@ -841,12 +883,11 @@
           intervalSessionTotalRounds = intervalTotalRounds;
           intervalCurrentRound = 1;
           intervalRemainingMilliseconds = intervalSessionDurationSeconds * 1000;
-          if (intervalConfiguredCountdownSeconds > 0) {
-            intervalDeadline = null;
-            intervalCountdownDeadline = Date.now() + intervalConfiguredCountdownSeconds * 1000;
-            intervalPhase = "countdown";
-            return;
-          }
+          intervalDeadline = null;
+          resetStartupCueProgress();
+          intervalCountdownDeadline = Date.now() + STARTUP_COUNTDOWN_SECONDS * 1000;
+          intervalPhase = "countdown";
+          return;
         }
         intervalCountdownDeadline = null;
         intervalDeadline = Date.now() + intervalRemainingMilliseconds;
@@ -867,18 +908,14 @@
         tabataSessionTotalRounds = tabataTotalRounds;
         tabataCurrentRound = 1;
         tabataRemainingMilliseconds = tabataSessionWorkDurationSeconds * 1000;
-        if (tabataConfiguredCountdownSeconds > 0) {
-          tabataDeadline = null;
-          tabataCountdownDeadline = Date.now() + tabataConfiguredCountdownSeconds * 1000;
-          tabataPhase = "countdown";
-          return;
-        }
-        tabataCountdownDeadline = null;
-        tabataDeadline = Date.now() + tabataRemainingMilliseconds;
-        tabataPhase = "work";
+        tabataDeadline = null;
+        resetStartupCueProgress();
+        tabataCountdownDeadline = Date.now() + STARTUP_COUNTDOWN_SECONDS * 1000;
+        tabataPhase = "countdown";
       }
 
       function start() {
+        initializeAudioContext();
         if (currentMode === "stopwatch") startStopwatch();
         else if (currentMode === "interval") startInterval();
         else startTabata();
@@ -889,6 +926,7 @@
 
       function stopStopwatch() {
         if (phase === "idle") return;
+        if (phase === "countdown") resetStartupCueProgress();
         if (phase === "running" && startedAt !== null) {
           elapsedMilliseconds += Date.now() - startedAt;
         }
@@ -899,6 +937,7 @@
 
       function stopInterval() {
         if (intervalPhase === "countdown") {
+          resetStartupCueProgress();
           intervalCountdownDeadline = null;
           intervalCurrentRound = 0;
           intervalRemainingMilliseconds = intervalDurationSeconds * 1000;
@@ -918,6 +957,7 @@
 
       function stopTabata() {
         if (tabataPhase === "countdown") {
+          resetStartupCueProgress();
           tabataCountdownDeadline = null;
           tabataDeadline = null;
           tabataCurrentRound = 0;
@@ -977,6 +1017,7 @@
       }
 
       function reset() {
+        resetStartupCueProgress();
         if (currentMode === "stopwatch") resetStopwatch();
         else if (currentMode === "interval") resetInterval();
         else resetTabata();
