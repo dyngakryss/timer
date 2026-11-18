@@ -17,27 +17,16 @@ The Tabata timer SHALL let the user configure positive work and rest durations i
 - **WHEN** the user applies a malformed or non-positive work or rest duration, or a non-positive or fractional round count
 - **THEN** the invalid settings are not accepted and the user can correct them
 
-### Requirement: Configure Tabata startup countdown
-The Tabata timer SHALL let the user configure a non-negative whole number of startup countdown seconds in Tabata Settings. The initial setting SHALL be zero, and an applied value SHALL remain in effect for the current page session and be used for the next new Tabata session.
-
-#### Scenario: Apply Tabata startup countdown
-- **WHEN** the user applies a valid whole number of startup countdown seconds
-- **THEN** that value is used before the next new Tabata session starts
-
-#### Scenario: Reject invalid Tabata startup countdown
-- **WHEN** the user attempts to apply an empty, negative, fractional, or otherwise invalid startup countdown
-- **THEN** the value is not accepted and the user can correct it
-
-#### Scenario: Start immediately with zero startup countdown
-- **WHEN** the user has not configured a startup countdown or its value is zero
-- **THEN** a new Tabata session begins its first work period immediately
-
 ### Requirement: Run Tabata work and rest rounds
-The Tabata timer SHALL count down each round's work duration followed by its rest duration, including after the final work period, and complete after the final rest. It SHALL show round progress during the session.
+The Tabata timer SHALL count down each round's work duration followed by its rest duration, including after the final work period, and complete after the final rest. It SHALL show round progress during the session. A new session SHALL begin with a fixed 10-second startup countdown before the first work period.
 
 #### Scenario: Begin the first work period
-- **WHEN** a new Tabata session starts with a positive startup countdown
-- **THEN** the startup countdown is shown before the first work period begins at its full configured duration
+- **WHEN** the user starts a new Tabata session
+- **THEN** the fixed 10-second startup countdown is shown before the first work period begins
+
+#### Scenario: Begin the first work period after startup
+- **WHEN** the 10-second startup countdown reaches zero
+- **THEN** the first work period begins at its full configured duration
 
 #### Scenario: Transition from work to rest
 - **WHEN** a work period reaches zero
@@ -60,11 +49,15 @@ The Tabata timer SHALL count down each round's work duration followed by its res
 - **THEN** only the current and total round values appear as “X of Y” above the countdown, without visible phase text, and the round status remains accessible to assistive technology
 
 ### Requirement: Pause, resume, stop, and reset Tabata
-The Tabata timer SHALL let the user cancel a startup countdown, pause a work or rest period without losing its remaining time or round progress, resume without repeating the startup countdown, and reset without changing configured settings.
+The Tabata timer SHALL let the user cancel a startup countdown, pause a work or rest period without losing its remaining time or round progress, resume without repeating the startup countdown, and reset without changing the configured work duration, rest duration, or round count.
 
 #### Scenario: Stop during startup countdown
 - **WHEN** the user activates Stop during the Tabata startup countdown
 - **THEN** the countdown is cancelled, the session returns to its unstarted state, and Start is available
+
+#### Scenario: Start again after cancelling the countdown
+- **WHEN** the user starts a Tabata session after cancelling its startup countdown
+- **THEN** a fresh 10-second startup countdown begins
 
 #### Scenario: Pause and resume a work or rest period
 - **WHEN** the user stops the timer during a work or rest period and later starts it again
@@ -72,4 +65,15 @@ The Tabata timer SHALL let the user cancel a startup countdown, pause a work or 
 
 #### Scenario: Reset a Tabata session
 - **WHEN** the user activates Reset during a startup countdown, work period, rest period, paused session, or completed session
-- **THEN** timing stops, progress clears, the display returns to the configured initial state, and all configured settings remain available for the next session
+- **THEN** timing stops, progress clears, the display returns to the configured initial state, and the configured work duration, rest duration, and round count remain available for the next session
+
+### Requirement: Provide audible cues for Tabata startup
+The Tabata timer SHALL play one short beep when each of 3, 2, and 1 seconds remains in the startup countdown, then play a 0.9-second beep that is slightly louder and lower-pitched when the first work period begins.
+
+#### Scenario: Hear final countdown cues
+- **WHEN** the startup countdown displays 3, 2, and 1 seconds remaining
+- **THEN** one short beep plays at each displayed value
+
+#### Scenario: Hear the Tabata start cue
+- **WHEN** the startup countdown completes and the first work period begins
+- **THEN** one 0.9-second beep plays at a slightly lower pitch and slightly louder than the short countdown beeps

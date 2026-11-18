@@ -21,35 +21,16 @@ The interval timer SHALL let the user configure a positive round duration with a
 - **WHEN** the user opens interval Settings
 - **THEN** the duration is configured in one text field labeled “Round duration (mm:ss)” rather than separate minute and second fields
 
-### Requirement: Configure interval startup countdown
-The interval timer SHALL let the user configure a non-negative whole number of startup countdown seconds from the interval Settings panel. The initial setting SHALL be zero, and an applied value SHALL remain in effect for the current page session and be used for the next new interval session.
-
-#### Scenario: Apply interval startup countdown
-- **WHEN** the user enters a valid whole number of seconds in interval Settings and applies it
-- **THEN** the value is used before the next new interval session starts
-
-#### Scenario: Reject invalid interval startup countdown
-- **WHEN** the user attempts to apply an empty, negative, fractional, or otherwise invalid countdown value
-- **THEN** the value is not accepted and the user can correct it
-
-#### Scenario: Use zero countdown by default
-- **WHEN** the user has not configured an interval startup countdown
-- **THEN** the countdown setting is zero and a new interval session starts immediately
-
-### Requirement: Count down and advance through interval rounds
-The interval timer SHALL count down each configured round in minutes and seconds, show the current round out of the configured total, automatically begin the next round at full duration when one remains, and stop at zero after the final round. When a positive startup countdown is configured, a new session SHALL count down before starting round 1; when the setting is zero, round 1 SHALL start immediately. The round status SHALL appear above the countdown at approximately 67% of its text size, show only the current and total values as “X of Y”, and not show a standalone large round numeral beside the countdown.
+### Requirement: Run interval rounds with a fixed startup countdown
+The interval timer SHALL count down each configured round and show round progress. A new session SHALL begin with a fixed 10-second countdown before round 1. Each next round SHALL begin immediately at full duration, and the final round SHALL stop at zero. Round status SHALL appear above the countdown at approximately 67% of its text size as “X of Y”, without a standalone large round numeral.
 
 #### Scenario: Start an interval session
-- **WHEN** the user starts an interval timer while it is reset
-- **THEN** the display starts the configured startup countdown when it is positive, or counts down the configured round duration immediately when it is zero, and shows “1 of <total>” above it at approximately 67% of the countdown text size
+- **WHEN** the user starts a new interval session
+- **THEN** the display shows the fixed 10-second startup countdown and “1 of <total>” above it at approximately 67% of the countdown text size
 
 #### Scenario: Count down before the first round
-- **WHEN** the user starts a new interval session with a positive startup countdown configured
-- **THEN** the display counts down the configured startup seconds in minutes and seconds, shows “1 of <total>”, and begins round 1 at its full configured duration when the countdown reaches zero
-
-#### Scenario: Start immediately with zero startup countdown
-- **WHEN** the user starts a new interval session with a zero startup countdown configured
-- **THEN** round 1 begins immediately at its full configured duration
+- **WHEN** the 10-second startup countdown reaches zero
+- **THEN** round 1 begins at its full configured duration
 
 #### Scenario: Advance to the next round
 - **WHEN** a round reaches zero and more configured rounds remain
@@ -64,11 +45,15 @@ The interval timer SHALL count down each configured round in minutes and seconds
 - **THEN** only the current and total values in “<current> of <total>” format appear above the countdown, the separate large round numeral is absent, and the status remains accessible to assistive technology
 
 ### Requirement: Pause, resume, and reset interval timing
-The interval timer SHALL let the user cancel a startup countdown, pause a round without losing its remaining time or round progress, resume a paused round without repeating the startup countdown, and reset the session without changing its configured settings.
+The interval timer SHALL let the user cancel a startup countdown, pause a round without losing its remaining time or round progress, resume a paused round without repeating the startup countdown, and reset the session without changing its configured duration or round count.
 
 #### Scenario: Stop during the startup countdown
 - **WHEN** the user activates Stop during the interval startup countdown
 - **THEN** the countdown is cancelled, the interval session remains unstarted at the configured round duration with round progress cleared, and Start is available to begin again
+
+#### Scenario: Start again after cancelling the countdown
+- **WHEN** the user starts an interval session after cancelling its startup countdown
+- **THEN** a fresh 10-second startup countdown begins
 
 #### Scenario: Pause and resume a round
 - **WHEN** the user stops the interval timer during a round and later starts it again
@@ -76,8 +61,19 @@ The interval timer SHALL let the user cancel a startup countdown, pause a round 
 
 #### Scenario: Reset during the startup countdown
 - **WHEN** the user activates Reset during the interval startup countdown
-- **THEN** the countdown is cancelled, round progress clears, the display returns to the configured round duration, and the configured startup countdown remains available for the next start
+- **THEN** the countdown is cancelled, round progress clears, the display returns to the configured round duration, and the next start uses a fresh 10-second countdown
 
 #### Scenario: Reset an interval session
-- **WHEN** the user resets the interval timer
-- **THEN** timing stops, round progress clears, the display returns to the configured round duration, and all configured settings remain available for the next session
+- **WHEN** the user resets an interval session
+- **THEN** timing stops, round progress clears, the display returns to the configured round duration, and the configured duration and round count remain available for the next session
+
+### Requirement: Provide audible cues for interval startup
+The interval timer SHALL play one short beep when each of 3, 2, and 1 seconds remains in the startup countdown, then play a 0.9-second beep that is slightly louder and lower-pitched when round 1 begins.
+
+#### Scenario: Hear final countdown cues
+- **WHEN** the startup countdown displays 3, 2, and 1 seconds remaining
+- **THEN** one short beep plays at each displayed value
+
+#### Scenario: Hear the interval start cue
+- **WHEN** the startup countdown completes and round 1 begins
+- **THEN** one 0.9-second beep plays at a slightly lower pitch and slightly louder than the short countdown beeps
