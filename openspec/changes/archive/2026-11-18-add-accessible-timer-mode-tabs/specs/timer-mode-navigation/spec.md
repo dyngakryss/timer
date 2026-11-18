@@ -2,7 +2,7 @@
 
 ## MODIFIED Requirements
 
-### Requirement: Navigate timer modes with visible tabs, horizontal swipes, and keyboard arrows
+### Requirement: Navigate timer modes with horizontal swipes and keyboard arrows
 The timer page SHALL let users move among Stopwatch, Intervals, and Tabata in that order using visible tabs, horizontal swipes, or left and right arrow keys. The tabs SHALL use the tablist pattern, expose the selected mode with `aria-selected`, and let arrow keys focus and select only an adjacent tab without wrapping. Arrow keys on the focused timer interface and horizontal swipes SHALL remain navigation shortcuts. The selected timer mode SHALL be identifiable to assistive technology without visible carousel instructions or timer-position text.
 
 #### Scenario: Select a mode by clicking or tapping a tab
