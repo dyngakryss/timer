@@ -123,6 +123,48 @@
         font-variant-numeric: tabular-nums;
       }
 
+      .countdown-overlay {
+        position: fixed;
+        z-index: 10;
+        inset: 0;
+        display: grid;
+        padding: 1rem;
+        place-items: center;
+        background: rgb(3 7 18 / 72%);
+        pointer-events: none;
+      }
+
+      .countdown-overlay[hidden] {
+        display: none;
+      }
+
+      .countdown-overlay__panel {
+        display: grid;
+        width: min(100%, 32rem);
+        min-width: 0;
+        min-height: min(60vw, 24rem);
+        padding: clamp(1.5rem, 8vw, 4rem);
+        place-items: center;
+        background: #111827;
+        border: 1px solid #4b5563;
+        border-radius: 1.5rem;
+        box-shadow: 0 1.5rem 4rem #0009;
+      }
+
+      .countdown-overlay__number {
+        margin: 0;
+        color: #f9fafb;
+        font-size: clamp(6rem, 32vw, 18rem);
+        font-variant-numeric: tabular-nums;
+        font-weight: 800;
+        line-height: 0.9;
+        transition: opacity 60ms ease-out;
+      }
+
+      .countdown-overlay__number.is-blinking {
+        opacity: 0;
+      }
+
       .controls {
         display: flex;
         flex-wrap: wrap;
@@ -233,6 +275,14 @@
           padding: 0.5rem 1rem;
         }
 
+        .countdown-overlay__panel {
+          min-height: min(70vh, 18rem);
+        }
+
+        .countdown-overlay__number {
+          font-size: clamp(6rem, 35vh, 18rem);
+        }
+
         #display {
           font-size: clamp(2.5rem, min(18vw, 32vh), 12rem);
         }
@@ -284,6 +334,11 @@
         <button id="reset" type="button">Reset</button>
       </div>
     </main>
+    <div id="countdown-overlay" class="countdown-overlay" hidden aria-hidden="true">
+      <div class="countdown-overlay__panel">
+        <p id="countdown-overlay-number" class="countdown-overlay__number"></p>
+      </div>
+    </div>
     <dialog id="settings-dialog" aria-labelledby="settings-title">
       <form id="settings-form" novalidate>
         <h2 id="settings-title">Interval settings</h2>
@@ -310,6 +365,8 @@
     </dialog>
     <script>
       const display = document.querySelector("#display");
+      const countdownOverlay = document.querySelector("#countdown-overlay");
+      const countdownOverlayNumber = document.querySelector("#countdown-overlay-number");
       const startButton = document.querySelector("#start");
       const stopButton = document.querySelector("#stop");
       const resetButton = document.querySelector("#reset");
@@ -517,7 +574,8 @@
 
       function renderStopwatch() {
         if (phase === "countdown") {
-          const remainingMilliseconds = countdownDeadline - Date.now();
+          const now = Date.now();
+          const remainingMilliseconds = countdownDeadline - now;
 
           if (remainingMilliseconds <= 0) {
             playSessionStartCue();
@@ -530,10 +588,12 @@
             playStartupCountdownCue(remainingSeconds);
             display.textContent = formatTime(remainingSeconds);
             display.setAttribute("aria-label", "Countdown remaining");
+            renderStartupCountdownOverlay(countdownDeadline, now);
             return;
           }
         }
 
+        renderStartupCountdownOverlay(null);
         const elapsed = elapsedMilliseconds
           + (phase === "running" && startedAt !== null ? Date.now() - startedAt : 0);
         display.textContent = formatTime(Math.floor(elapsed / 1000));
@@ -545,6 +605,23 @@
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
         return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      }
+
+      function renderStartupCountdownOverlay(deadline, now = Date.now()) {
+        countdownOverlay.hidden = deadline === null;
+        if (deadline === null) {
+          countdownOverlayNumber.textContent = "";
+          countdownOverlayNumber.classList.remove("is-blinking");
+          return;
+        }
+
+        const remainingMilliseconds = Math.max(0, deadline - now);
+        const elapsedMilliseconds = STARTUP_COUNTDOWN_SECONDS * 1000 - remainingMilliseconds;
+        countdownOverlayNumber.textContent = String(Math.ceil(remainingMilliseconds / 1000));
+        countdownOverlayNumber.classList.toggle(
+          "is-blinking",
+          elapsedMilliseconds % 1000 >= 850
+        );
       }
 
       function parseDuration(value) {
@@ -673,6 +750,10 @@
             : intervalRemainingMilliseconds;
         const remainingSeconds = Math.ceil(remainingMilliseconds / 1000);
 
+        renderStartupCountdownOverlay(
+          intervalPhase === "countdown" ? intervalCountdownDeadline : null,
+          now
+        );
         if (intervalPhase === "countdown") playStartupCountdownCue(remainingSeconds);
         display.textContent = formatTime(remainingSeconds);
         roundStatus.hidden = false;
@@ -746,6 +827,10 @@
         }[visiblePhase];
 
         const remainingSeconds = Math.ceil(remainingMilliseconds / 1000);
+        renderStartupCountdownOverlay(
+          tabataPhase === "countdown" ? tabataCountdownDeadline : null,
+          now
+        );
         if (tabataPhase === "countdown") playStartupCountdownCue(remainingSeconds);
         display.textContent = formatTime(remainingSeconds);
         roundStatus.hidden = false;

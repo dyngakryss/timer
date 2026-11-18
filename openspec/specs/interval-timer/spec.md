@@ -67,6 +67,21 @@ The interval timer SHALL let the user cancel a startup countdown, pause a round 
 - **WHEN** the user resets an interval session
 - **THEN** timing stops, round progress clears, the display returns to the configured round duration, and the configured duration and round count remain available for the next session
 
+### Requirement: Present interval startup countdown in a blinking overlay
+During its fixed 10-second startup countdown, the interval timer SHALL show a centered overlay above its interface with only the remaining whole-second number from 10 through 1. The number SHALL be large and bold, the surrounding interface SHALL be subdued, and existing timer controls and round status SHALL remain available.
+
+#### Scenario: Show the interval countdown overlay
+- **WHEN** a new interval startup countdown begins
+- **THEN** a centered overlay displays only the remaining number from 10 through 1 in large, bold type over a subdued interface
+
+#### Scenario: Blink between interval countdown numbers
+- **WHEN** the displayed whole-second value advances during the startup countdown
+- **THEN** the current number briefly fades or disappears before the next number appears
+
+#### Scenario: Cancel the interval countdown from the overlay
+- **WHEN** the user activates Stop or Reset while the overlay is shown
+- **THEN** the countdown is cancelled according to the existing interval timer behavior and the round-status information remains outside the overlay
+
 ### Requirement: Provide audible cues for interval startup
 The interval timer SHALL play one short beep when each of 3, 2, and 1 seconds remains in the startup countdown, then play a 0.9-second beep that is slightly louder and lower-pitched when round 1 begins.
 

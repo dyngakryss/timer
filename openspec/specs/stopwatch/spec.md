@@ -72,3 +72,18 @@ The stopwatch page SHALL use a borderless layout that lets the timer display occ
 #### Scenario: Tablet portrait and landscape layouts
 - **WHEN** the page is viewed on a tablet in portrait or landscape orientation
 - **THEN** the layout adapts to the available space, keeps the timer display as large as practical, and displays all controls without horizontal overflow or clipping
+
+### Requirement: Present stopwatch startup countdown in a blinking overlay
+During its fixed 10-second startup countdown, the stopwatch SHALL show a centered overlay above its interface with only the remaining whole-second number from 10 through 1. The number SHALL be large and bold, the surrounding interface SHALL be subdued, and the existing stop and reset controls SHALL remain usable.
+
+#### Scenario: Show the stopwatch countdown overlay
+- **WHEN** a new stopwatch startup countdown begins
+- **THEN** a centered overlay displays only the remaining number from 10 through 1 in large, bold type over a subdued interface
+
+#### Scenario: Blink between stopwatch countdown numbers
+- **WHEN** the displayed whole-second value advances during the startup countdown
+- **THEN** the current number briefly fades or disappears before the next number appears
+
+#### Scenario: Cancel the stopwatch countdown from the overlay
+- **WHEN** the user activates Stop or Reset while the overlay is shown
+- **THEN** the countdown is cancelled according to the existing stopwatch timing behavior
