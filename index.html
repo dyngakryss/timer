@@ -270,6 +270,8 @@
         <label for="countdown-seconds">Countdown before start (seconds)</label>
         <input id="countdown-seconds" name="countdown-seconds" type="number" min="0" step="1" inputmode="numeric" aria-describedby="settings-error">
         <div id="interval-settings" hidden>
+          <label for="interval-countdown-seconds">Countdown before start (seconds)</label>
+          <input id="interval-countdown-seconds" name="interval-countdown-seconds" type="number" min="0" step="1" inputmode="numeric" aria-describedby="settings-error">
           <label for="interval-duration">Round duration (mm:ss)</label>
           <input id="interval-duration" name="interval-duration" type="text" inputmode="text" placeholder="01:30" autocomplete="off" spellcheck="false" aria-describedby="settings-error">
           <label for="interval-rounds">Total rounds</label>
@@ -296,6 +298,7 @@
       const countdownInput = document.querySelector("#countdown-seconds");
       const countdownLabel = document.querySelector('label[for="countdown-seconds"]');
       const intervalSettings = document.querySelector("#interval-settings");
+      const intervalCountdownInput = document.querySelector("#interval-countdown-seconds");
       const intervalDurationInput = document.querySelector("#interval-duration");
       const intervalRoundsInput = document.querySelector("#interval-rounds");
       const settingsError = document.querySelector("#settings-error");
@@ -304,6 +307,7 @@
       let startedAt = null;
       let intervalId = null;
       let configuredCountdownSeconds = 0;
+      let intervalConfiguredCountdownSeconds = 0;
       let countdownDeadline = null;
       let phase = "idle";
       let hasStarted = false;
@@ -315,13 +319,14 @@
       let intervalCurrentRound = 0;
       let intervalRemainingMilliseconds = 60_000;
       let intervalDeadline = null;
+      let intervalCountdownDeadline = null;
       let intervalPhase = "idle";
       let pointerStart = null;
 
       function currentTimerIsActive() {
         return currentMode === "stopwatch"
           ? phase !== "idle"
-          : intervalPhase === "running";
+          : intervalPhase === "running" || intervalPhase === "countdown";
       }
 
       function switchMode(mode) {
@@ -371,6 +376,7 @@
 
       function openSettings() {
         countdownInput.value = String(configuredCountdownSeconds);
+        intervalCountdownInput.value = String(intervalConfiguredCountdownSeconds);
         intervalDurationInput.value = formatTime(intervalDurationSeconds);
         intervalRoundsInput.value = String(intervalTotalRounds);
         const isStopwatch = currentMode === "stopwatch";
@@ -396,8 +402,10 @@
           }
           configuredCountdownSeconds = seconds;
         } else {
+          const countdownValue = intervalCountdownInput.value.trim();
           const durationValue = intervalDurationInput.value.trim();
           const roundsValue = intervalRoundsInput.value.trim();
+          const countdownSeconds = Number(countdownValue);
           const durationMatch = /^(\d+):(\d{2})$/.exec(durationValue);
           const rounds = Number(roundsValue);
           const minutes = durationMatch === null ? NaN : Number(durationMatch[1]);
@@ -412,6 +420,14 @@
           const validRounds = /^\d+$/.test(roundsValue)
             && Number.isSafeInteger(rounds)
             && rounds > 0;
+          const validCountdown = /^\d+$/.test(countdownValue)
+            && Number.isSafeInteger(countdownSeconds);
+
+          if (!validCountdown) {
+            settingsError.textContent = "Enter a non-negative whole number of seconds.";
+            intervalCountdownInput.focus();
+            return;
+          }
 
           if (!validDuration || !validRounds) {
             settingsError.textContent =
@@ -420,9 +436,10 @@
             return;
           }
 
+          intervalConfiguredCountdownSeconds = countdownSeconds;
           intervalDurationSeconds = durationSeconds;
           intervalTotalRounds = rounds;
-          if (intervalPhase !== "running" && intervalPhase !== "paused") {
+          if (intervalPhase !== "running" && intervalPhase !== "paused" && intervalPhase !== "countdown") {
             intervalCurrentRound = 0;
             intervalRemainingMilliseconds = intervalDurationSeconds * 1000;
             intervalSessionDurationSeconds = intervalDurationSeconds;
@@ -467,6 +484,12 @@
       }
 
       function updateInterval(now) {
+        if (intervalPhase === "countdown") {
+          if (intervalCountdownDeadline === null || now < intervalCountdownDeadline) return;
+          intervalDeadline = intervalCountdownDeadline + intervalSessionDurationSeconds * 1000;
+          intervalCountdownDeadline = null;
+          intervalPhase = "running";
+        }
         if (intervalPhase !== "running" || intervalDeadline === null || now < intervalDeadline) return;
 
         const durationMilliseconds = intervalSessionDurationSeconds * 1000;
@@ -490,12 +513,15 @@
         updateInterval(now);
         const sessionActive = intervalPhase === "running"
           || intervalPhase === "paused"
+          || intervalPhase === "countdown"
           || intervalPhase === "complete";
         const durationSeconds = sessionActive ? intervalSessionDurationSeconds : intervalDurationSeconds;
         const totalRounds = sessionActive ? intervalSessionTotalRounds : intervalTotalRounds;
-        const remainingMilliseconds = intervalPhase === "running" && intervalDeadline !== null
-          ? Math.max(0, intervalDeadline - now)
-          : intervalRemainingMilliseconds;
+        const remainingMilliseconds = intervalPhase === "countdown" && intervalCountdownDeadline !== null
+          ? Math.max(0, intervalCountdownDeadline - now)
+          : intervalPhase === "running" && intervalDeadline !== null
+            ? Math.max(0, intervalDeadline - now)
+            : intervalRemainingMilliseconds;
         const remainingSeconds = Math.ceil(remainingMilliseconds / 1000);
 
         display.textContent = formatTime(remainingSeconds);
@@ -522,7 +548,9 @@
       }
 
       function timerIsRunning() {
-        return currentMode === "stopwatch" ? phase !== "idle" : intervalPhase === "running";
+        return currentMode === "stopwatch"
+          ? phase !== "idle"
+          : intervalPhase === "running" || intervalPhase === "countdown";
       }
 
       function updateControls() {
@@ -558,13 +586,20 @@
       }
 
       function startInterval() {
-        if (intervalPhase === "running") return;
+        if (intervalPhase === "running" || intervalPhase === "countdown") return;
         if (intervalPhase !== "paused") {
           intervalSessionDurationSeconds = intervalDurationSeconds;
           intervalSessionTotalRounds = intervalTotalRounds;
           intervalCurrentRound = 1;
           intervalRemainingMilliseconds = intervalSessionDurationSeconds * 1000;
+          if (intervalConfiguredCountdownSeconds > 0) {
+            intervalDeadline = null;
+            intervalCountdownDeadline = Date.now() + intervalConfiguredCountdownSeconds * 1000;
+            intervalPhase = "countdown";
+            return;
+          }
         }
+        intervalCountdownDeadline = null;
         intervalDeadline = Date.now() + intervalRemainingMilliseconds;
         intervalPhase = "running";
       }
@@ -588,6 +623,15 @@
       }
 
       function stopInterval() {
+        if (intervalPhase === "countdown") {
+          intervalCountdownDeadline = null;
+          intervalCurrentRound = 0;
+          intervalRemainingMilliseconds = intervalDurationSeconds * 1000;
+          intervalSessionDurationSeconds = intervalDurationSeconds;
+          intervalSessionTotalRounds = intervalTotalRounds;
+          intervalPhase = "idle";
+          return;
+        }
         if (intervalPhase !== "running") return;
         updateInterval(Date.now());
         if (intervalPhase === "running" && intervalDeadline !== null) {
@@ -615,6 +659,7 @@
 
       function resetInterval() {
         intervalDeadline = null;
+        intervalCountdownDeadline = null;
         intervalCurrentRound = 0;
         intervalRemainingMilliseconds = intervalDurationSeconds * 1000;
         intervalSessionDurationSeconds = intervalDurationSeconds;
