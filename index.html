@@ -337,6 +337,10 @@
       let elapsedMilliseconds = 0;
       let startedAt = null;
       let intervalId = null;
+      let screenWakeLock = null;
+      let screenWakeLockRequest = null;
+      let screenWakeLockGeneration = 0;
+      let screenWakeLockUnavailable = false;
       let configuredCountdownSeconds = 0;
       let intervalConfiguredCountdownSeconds = 0;
       let countdownDeadline = null;
@@ -722,6 +726,7 @@
         else if (currentMode === "interval") renderInterval();
         else renderTabata();
         if (!timerIsRunning()) stopRefresh();
+        syncScreenWakeLock();
       }
 
       function timerIsRunning() {
@@ -749,6 +754,71 @@
           window.clearInterval(intervalId);
           intervalId = null;
         }
+      }
+
+      function releaseScreenWakeLockSentinel(sentinel) {
+        if (sentinel.released) return Promise.resolve();
+        return sentinel.release().catch(error => {
+          console.warn("Unable to release screen wake lock:", error);
+        });
+      }
+
+      function releaseScreenWakeLock() {
+        const hasPendingRequest = screenWakeLockRequest !== null;
+        const sentinel = screenWakeLock;
+        screenWakeLock = null;
+        screenWakeLockUnavailable = false;
+
+        if (hasPendingRequest || sentinel !== null) screenWakeLockGeneration += 1;
+        if (sentinel !== null) void releaseScreenWakeLockSentinel(sentinel);
+      }
+
+      function syncScreenWakeLock() {
+        if (!timerIsRunning() || document.visibilityState !== "visible") {
+          releaseScreenWakeLock();
+          return;
+        }
+        if (typeof navigator.wakeLock?.request !== "function") return;
+        if (screenWakeLockUnavailable || screenWakeLock !== null || screenWakeLockRequest !== null) return;
+
+        const requestGeneration = screenWakeLockGeneration;
+        let request;
+        try {
+          request = navigator.wakeLock.request("screen");
+        } catch (error) {
+          screenWakeLockUnavailable = true;
+          console.warn("Unable to acquire screen wake lock:", error);
+          return;
+        }
+
+        screenWakeLockRequest = request;
+        request.then(sentinel => {
+          if (screenWakeLockRequest === request) screenWakeLockRequest = null;
+          if (
+            requestGeneration !== screenWakeLockGeneration
+            || !timerIsRunning()
+            || document.visibilityState !== "visible"
+          ) {
+            void releaseScreenWakeLockSentinel(sentinel).then(syncScreenWakeLock);
+            return;
+          }
+
+          screenWakeLock = sentinel;
+          sentinel.addEventListener("release", () => {
+            if (screenWakeLock === sentinel) screenWakeLock = null;
+            if (document.visibilityState === "visible" && timerIsRunning()) syncScreenWakeLock();
+          }, { once: true });
+        }).catch(error => {
+          if (screenWakeLockRequest === request) screenWakeLockRequest = null;
+          if (
+            requestGeneration === screenWakeLockGeneration
+            && timerIsRunning()
+            && document.visibilityState === "visible"
+          ) {
+            screenWakeLockUnavailable = true;
+            console.warn("Unable to acquire screen wake lock:", error);
+          }
+        });
       }
 
       function startStopwatch() {
@@ -927,6 +997,7 @@
       settingsDialog.addEventListener("click", event => {
         if (event.target === settingsDialog) settingsDialog.close();
       });
+      document.addEventListener("visibilitychange", syncScreenWakeLock);
       render();
       updateControls();
     </script>
